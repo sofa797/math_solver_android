@@ -25,6 +25,12 @@ android {
 }
 
 dependencies {
+    implementation("androidx.camera:camera-camera2:1.4.0")
+    implementation("androidx.camera:camera-lifecycle:1.4.0")
+    implementation("androidx.camera:camera-view:1.4.0")
+    implementation("com.google.mlkit:text-recognition:16.0.0")
+    implementation("com.google.accompanist:accompanist-permissions:0.34.0")
+
     implementation("androidx.compose.material:material-icons-extended")
     implementation("androidx.lifecycle:lifecycle-livedata-ktx:2.6.1")
     implementation("androidx.compose.runtime:runtime-livedata:1.6.0")
