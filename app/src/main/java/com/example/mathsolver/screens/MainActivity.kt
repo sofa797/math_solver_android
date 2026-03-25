@@ -1,15 +1,13 @@
 package com.example.mathsolver.screens
 
 import android.Manifest
-import android.graphics.Bitmap
+import android.graphics.*
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.camera.core.ImageCapture
-import androidx.camera.core.ImageProxy
-import androidx.camera.view.CameraController
-import androidx.camera.view.LifecycleCameraController
+import androidx.camera.core.*
+import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
@@ -30,13 +28,10 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.mathsolver.ui.theme.MathSolverTheme
 import com.example.mathsolver.viewmodel.MainViewModel
-import com.google.accompanist.permissions.ExperimentalPermissionsApi
-import com.google.accompanist.permissions.isGranted
-import androidx.compose.ui.tooling.preview.Preview
-import com.google.accompanist.permissions.rememberPermissionState
-import com.google.mlkit.vision.common.InputImage
-import com.google.mlkit.vision.text.TextRecognition
-import com.google.mlkit.vision.text.latin.TextRecognizerOptions
+import com.google.accompanist.permissions.*
+import com.example.mathsolver.domain.OcrApi
+import com.example.mathsolver.domain.toReducedByteArray
+import java.io.ByteArrayOutputStream
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -74,9 +69,7 @@ fun EquationScreen(viewModel: MainViewModel = viewModel()) {
                 onClose = { showCamera = false }
             )
         } else {
-            SideEffect {
-                cameraPermissionState.launchPermissionRequest()
-            }
+            SideEffect { cameraPermissionState.launchPermissionRequest() }
         }
     } else {
         Scaffold(
@@ -90,12 +83,13 @@ fun EquationScreen(viewModel: MainViewModel = viewModel()) {
                 verticalArrangement = Arrangement.Center
             ) {
                 Text("Enter a linear equation", style = MaterialTheme.typography.titleMedium)
+
                 Spacer(modifier = Modifier.height(16.dp))
 
                 OutlinedTextField(
                     value = input,
                     onValueChange = { input = it },
-                    label = { Text("For instance: 2x+4") },
+                    label = { Text("For instance: 2x+4=10") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                     trailingIcon = {
@@ -148,62 +142,84 @@ fun EquationScreen(viewModel: MainViewModel = viewModel()) {
 fun CameraView(onTextDetected: (String) -> Unit, onClose: () -> Unit) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
-    val controller = remember {
-        LifecycleCameraController(context).apply {
-            setEnabledUseCases(CameraController.IMAGE_CAPTURE)
-        }
+
+    val cameraProviderFuture = remember { ProcessCameraProvider.getInstance(context) }
+    val previewView = remember { PreviewView(context) }
+
+    val imageCapture = remember {
+        ImageCapture.Builder()
+            .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
+            .build()
+    }
+
+    LaunchedEffect(cameraProviderFuture) {
+        val cameraProvider = cameraProviderFuture.get()
+        cameraProvider.unbindAll()
+        val preview = Preview.Builder().build().also { it.setSurfaceProvider(previewView.surfaceProvider) }
+        cameraProvider.bindToLifecycle(
+            lifecycleOwner,
+            CameraSelector.DEFAULT_BACK_CAMERA,
+            preview,
+            imageCapture
+        )
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        AndroidView(
-            factory = { ctx ->
-                PreviewView(ctx).apply {
-                    this.controller = controller
-                    controller.bindToLifecycle(lifecycleOwner)
-                }
-            },
-            modifier = Modifier.fillMaxSize()
-        )
+        AndroidView(factory = { previewView }, modifier = Modifier.fillMaxSize())
 
-        IconButton(
-            onClick = onClose,
-            modifier = Modifier.align(Alignment.TopStart).padding(16.dp)
-        ) {
+        IconButton(onClick = onClose, modifier = Modifier.align(Alignment.TopStart).padding(16.dp)) {
             Icon(Icons.Default.Close, contentDescription = "Close", tint = Color.White)
         }
 
         Button(
             onClick = {
-                val mainExecutor = ContextCompat.getMainExecutor(context)
-                controller.takePicture(mainExecutor, object : ImageCapture.OnImageCapturedCallback() {
-                    override fun onCaptureSuccess(image: ImageProxy) {
-                        val bitmap = image.toBitmap()
-                        recognizeText(bitmap, context, onTextDetected)
-                        image.close()
+                val executor = ContextCompat.getMainExecutor(context)
+                imageCapture.takePicture(
+                    executor,
+                    object : ImageCapture.OnImageCapturedCallback() {
+                        override fun onCaptureSuccess(image: ImageProxy) {
+                            val bitmap = image.toBitmap()
+                            image.close()
+
+                            val api = OcrApi()
+                            api.recognizeImage(bitmap.toReducedByteArray()) { result ->
+                                (context as ComponentActivity).runOnUiThread {
+                                    onTextDetected(result ?: "")
+                                }
+                            }
+                        }
+
+                        override fun onError(exception: ImageCaptureException) {
+                            Toast.makeText(context, "Capture error: ${exception.message}", Toast.LENGTH_LONG).show()
+                        }
                     }
-                })
+                )
             },
             modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 48.dp)
-        ) {
-            Text("Take a picture")
-        }
+        ) { Text("Take a picture") }
     }
 }
 
-private fun recognizeText(bitmap: Bitmap, context: android.content.Context, onResult: (String) -> Unit) {
-    val image = InputImage.fromBitmap(bitmap, 0)
-    val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
+fun ImageProxy.toBitmap(): Bitmap {
+    val yBuffer = planes[0].buffer
+    val uBuffer = planes[1].buffer
+    val vBuffer = planes[2].buffer
 
-    recognizer.process(image)
-        .addOnSuccessListener { visionText ->
-            val resultText = visionText.text.replace("\n", " ").trim()
-            if (resultText.isNotEmpty()) {
-                onResult(resultText)
-            } else {
-                Toast.makeText(context, "Text is not found", Toast.LENGTH_SHORT).show()
-            }
-        }
-        .addOnFailureListener {
-            Toast.makeText(context, "Recognition error", Toast.LENGTH_SHORT).show()
-        }
+    val ySize = yBuffer.remaining()
+    val uSize = uBuffer.remaining()
+    val vSize = vBuffer.remaining()
+
+    val nv21 = ByteArray(ySize + uSize + vSize)
+    yBuffer.get(nv21, 0, ySize)
+
+    for (i in 0 until vSize) {
+        nv21[ySize + i * 2] = vBuffer.get(i)
+        nv21[ySize + i * 2 + 1] = uBuffer.get(i)
+    }
+
+    val yuvImage = YuvImage(nv21, ImageFormat.NV21, width, height, null)
+    val out = ByteArrayOutputStream()
+    yuvImage.compressToJpeg(Rect(0, 0, width, height), 100, out)
+    val imageBytes = out.toByteArray()
+    return BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size)
 }

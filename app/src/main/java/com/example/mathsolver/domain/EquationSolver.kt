@@ -39,16 +39,18 @@ class EquationSolver {
         val tokens = Regex("([+-]?[^+-]+)").findAll(side)
 
         for (token in tokens) {
-            val value = token.value
+            val value = token.value.trim()
+            if (value.isEmpty()) continue
+
             if (value.contains("x")) {
                 val coeff = value.replace("x", "")
                 a += when (coeff) {
                     "", "+" -> 1.0
                     "-" -> -1.0
-                    else -> coeff.toDouble()
+                    else -> coeff.toDoubleOrNull() ?: 0.0
                 }
             } else {
-                b += value.toDouble()
+                b += value.toDoubleOrNull() ?: 0.0
             }
         }
 
