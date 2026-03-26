@@ -50,8 +50,8 @@ class OcrApi {
                             val json = org.json.JSONObject(responseText)
                             val rawText = json.optString("md_results", "")
                             if (rawText.isEmpty()) {
-                                Log.e("OcrApi", "md_results пустой")
-                                onResult("2x+4=10") // fallback
+                                Log.e("OcrApi", "md_results is empty")
+                                onResult("2x+4=10")
                                 return
                             }
                             val equation = extractEquation(rawText)

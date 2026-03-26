@@ -9,6 +9,8 @@ import androidx.activity.compose.setContent
 import androidx.camera.core.*
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CameraAlt
@@ -19,7 +21,12 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.unit.dp
@@ -52,18 +59,18 @@ class MainActivity : ComponentActivity() {
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalPermissionsApi::class)
 @Composable
 fun EquationScreen(viewModel: MainViewModel = viewModel()) {
+
     var input by remember { mutableStateOf("") }
     val result by viewModel.result.observeAsState("")
     var showCamera by remember { mutableStateOf(false) }
 
     val cameraPermissionState = rememberPermissionState(Manifest.permission.CAMERA)
-    val context = LocalContext.current
 
     if (showCamera) {
         if (cameraPermissionState.status.isGranted) {
             CameraView(
-                onTextDetected = { detectedText ->
-                    input = detectedText
+                onTextDetected = {
+                    input = it
                     showCamera = false
                 },
                 onClose = { showCamera = false }
@@ -75,6 +82,7 @@ fun EquationScreen(viewModel: MainViewModel = viewModel()) {
         Scaffold(
             topBar = { TopAppBar(title = { Text("Math Solver") }) }
         ) { padding ->
+
             Column(
                 modifier = Modifier
                     .fillMaxSize()
@@ -82,9 +90,13 @@ fun EquationScreen(viewModel: MainViewModel = viewModel()) {
                     .padding(24.dp),
                 verticalArrangement = Arrangement.Center
             ) {
-                Text("Enter a linear equation", style = MaterialTheme.typography.titleMedium)
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Text(
+                    "Enter a linear equation",
+                    style = MaterialTheme.typography.titleMedium
+                )
+
+                Spacer(Modifier.height(16.dp))
 
                 OutlinedTextField(
                     value = input,
@@ -101,34 +113,36 @@ fun EquationScreen(viewModel: MainViewModel = viewModel()) {
                     }
                 )
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(Modifier.height(16.dp))
 
                 Button(
                     onClick = { viewModel.solveEquation(input) },
                     modifier = Modifier.fillMaxWidth()
-                ) { Text("Solve") }
+                ) {
+                    Text("Solve")
+                }
 
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(Modifier.height(12.dp))
 
                 OutlinedButton(
                     onClick = { showCamera = true },
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Icon(Icons.Default.CameraAlt, contentDescription = null)
-                    Spacer(modifier = Modifier.width(8.dp))
+                    Spacer(Modifier.width(8.dp))
                     Text("Scan from camera")
                 }
 
-                Spacer(modifier = Modifier.height(32.dp))
+                Spacer(Modifier.height(32.dp))
 
                 if (result.isNotEmpty()) {
                     Card(
                         modifier = Modifier.fillMaxWidth(),
                         elevation = CardDefaults.cardElevation(6.dp)
                     ) {
-                        Column(modifier = Modifier.padding(16.dp)) {
+                        Column(Modifier.padding(16.dp)) {
                             Text("Result:", style = MaterialTheme.typography.labelLarge)
-                            Spacer(modifier = Modifier.height(8.dp))
+                            Spacer(Modifier.height(8.dp))
                             Text(result, style = MaterialTheme.typography.headlineSmall)
                         }
                     }
@@ -140,6 +154,7 @@ fun EquationScreen(viewModel: MainViewModel = viewModel()) {
 
 @Composable
 fun CameraView(onTextDetected: (String) -> Unit, onClose: () -> Unit) {
+
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
 
@@ -152,10 +167,41 @@ fun CameraView(onTextDetected: (String) -> Unit, onClose: () -> Unit) {
             .build()
     }
 
+    data class Corner(
+        val x: Float,
+        val y: Float,
+    )
+    var corners by remember {
+        mutableStateOf(
+            listOf(
+                Corner(0.2f, 0.3f),
+                Corner(0.8f, 0.3f),
+                Corner(0.8f, 0.6f),
+                Corner(0.2f, 0.6f),
+            )
+        )
+    }
+
+    val cropRect = remember(corners) {
+        val xs = corners.map { it.x }
+        val ys = corners.map { it.y }
+
+        RectF(
+            xs.minOrNull() ?: 0f,
+            ys.minOrNull() ?: 0f,
+            xs.maxOrNull() ?: 1f,
+            ys.maxOrNull() ?: 1f
+        )
+    }
+
     LaunchedEffect(cameraProviderFuture) {
         val cameraProvider = cameraProviderFuture.get()
         cameraProvider.unbindAll()
-        val preview = Preview.Builder().build().also { it.setSurfaceProvider(previewView.surfaceProvider) }
+
+        val preview = Preview.Builder().build().also {
+            it.setSurfaceProvider(previewView.surfaceProvider)
+        }
+
         cameraProvider.bindToLifecycle(
             lifecycleOwner,
             CameraSelector.DEFAULT_BACK_CAMERA,
@@ -165,24 +211,149 @@ fun CameraView(onTextDetected: (String) -> Unit, onClose: () -> Unit) {
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        AndroidView(factory = { previewView }, modifier = Modifier.fillMaxSize())
 
-        IconButton(onClick = onClose, modifier = Modifier.align(Alignment.TopStart).padding(16.dp)) {
+        AndroidView(
+            factory = { previewView },
+            modifier = Modifier.fillMaxSize()
+        )
+
+        var canvasSize by remember { mutableStateOf(Size.Zero) }
+
+        Canvas(
+            modifier = Modifier
+                .fillMaxSize()
+                .onSizeChanged {
+                    canvasSize = Size(it.width.toFloat(), it.height.toFloat())
+                }
+                .pointerInput(Unit) {
+                    detectDragGestures { change, dragAmount ->
+
+                        change.consume()
+
+                        val touch = change.position
+
+                        val index = corners.indexOfFirst { corner ->
+                            val px = corner.x * canvasSize.width
+                            val py = corner.y * canvasSize.height
+
+                            val dx = px - touch.x
+                            val dy = py - touch.y
+
+                            (dx * dx + dy * dy) < 4000
+                        }
+
+                        if (index != -1) {
+                            val dx = dragAmount.x / canvasSize.width
+                            val dy = dragAmount.y / canvasSize.height
+
+                            val updated = corners.toMutableList()
+
+                            val old = updated[index]
+
+                            when (index) {
+
+                                0 -> {
+                                    updated[0] = Corner(
+                                        (old.x + dx).coerceIn(0f, updated[1].x - 0.05f),
+                                        (old.y + dy).coerceIn(0f, updated[3].y - 0.05f)
+                                    )
+                                    updated[1] = updated[1].copy(y = updated[0].y)
+                                    updated[3] = updated[3].copy(x = updated[0].x)
+                                }
+
+                                1 -> {
+                                    updated[1] = Corner(
+                                        (old.x + dx).coerceIn(updated[0].x + 0.05f, 1f),
+                                        (old.y + dy).coerceIn(0f, updated[2].y - 0.05f)
+                                    )
+                                    updated[0] = updated[0].copy(y = updated[1].y)
+                                    updated[2] = updated[2].copy(x = updated[1].x)
+                                }
+
+                                2 -> {
+                                    updated[2] = Corner(
+                                        (old.x + dx).coerceIn(updated[3].x + 0.05f, 1f),
+                                        (old.y + dy).coerceIn(updated[1].y + 0.05f, 1f)
+                                    )
+                                    updated[1] = updated[1].copy(x = updated[2].x)
+                                    updated[3] = updated[3].copy(y = updated[2].y)
+                                }
+
+                                3 -> {
+                                    updated[3] = Corner(
+                                        (old.x + dx).coerceIn(0f, updated[2].x - 0.05f),
+                                        (old.y + dy).coerceIn(updated[0].y + 0.05f, 1f)
+                                    )
+                                    updated[0] = updated[0].copy(x = updated[3].x)
+                                    updated[2] = updated[2].copy(y = updated[3].y)
+                                }
+                            }
+
+                            corners = updated
+                        }
+                    }
+                }
+        ) {
+            for (i in corners.indices) {
+                val current = corners[i]
+                val next = corners[(i + 1) % corners.size]
+
+                drawLine(
+                    color = Color.Red,
+                    start = Offset(current.x * size.width, current.y * size.height),
+                    end = Offset(next.x * size.width, next.y * size.height),
+                    strokeWidth = 4f
+                )
+            }
+
+            corners.forEach { corner ->
+                drawCircle(
+                    color = Color.White,
+                    radius = 18f,
+                    center = Offset(
+                        corner.x * size.width,
+                        corner.y * size.height
+                    )
+                )
+            }
+        }
+
+        IconButton(
+            onClick = onClose,
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .padding(16.dp)
+        ) {
             Icon(Icons.Default.Close, contentDescription = "Close", tint = Color.White)
         }
 
         Button(
             onClick = {
                 val executor = ContextCompat.getMainExecutor(context)
+
                 imageCapture.takePicture(
                     executor,
                     object : ImageCapture.OnImageCapturedCallback() {
+
                         override fun onCaptureSuccess(image: ImageProxy) {
                             val bitmap = image.toBitmap()
                             image.close()
 
-                            val api = OcrApi()
-                            api.recognizeImage(bitmap.toReducedByteArray()) { result ->
+                            val xs = corners.map { it.x }
+                            val ys = corners.map { it.y }
+
+                            val rect = RectF(
+                                xs.minOrNull()!!,
+                                ys.minOrNull()!!,
+                                xs.maxOrNull()!!,
+                                ys.maxOrNull()!!
+                            )
+
+                            val cropped = bitmap.crop(rect)
+
+                            OcrApi().recognizeImage(
+                                cropped.toByteArray()
+                            ) { result ->
                                 (context as ComponentActivity).runOnUiThread {
                                     onTextDetected(result ?: "")
                                 }
@@ -190,36 +361,43 @@ fun CameraView(onTextDetected: (String) -> Unit, onClose: () -> Unit) {
                         }
 
                         override fun onError(exception: ImageCaptureException) {
-                            Toast.makeText(context, "Capture error: ${exception.message}", Toast.LENGTH_LONG).show()
+                            Toast.makeText(
+                                context,
+                                "Capture error: ${exception.message}",
+                                Toast.LENGTH_LONG
+                            ).show()
                         }
                     }
                 )
             },
-            modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 48.dp)
-        ) { Text("Take a picture") }
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = 48.dp)
+        ) {
+            Text("Take a picture")
+        }
     }
 }
 
+
+fun Bitmap.crop(rect: RectF): Bitmap {
+    val x = (rect.left * width).toInt().coerceIn(0, width - 1)
+    val y = (rect.top * height).toInt().coerceIn(0, height - 1)
+    val w = ((rect.right - rect.left) * width).toInt().coerceAtLeast(1)
+    val h = ((rect.bottom - rect.top) * height).toInt().coerceAtLeast(1)
+
+    return Bitmap.createBitmap(this, x, y, w, h)
+}
+
 fun ImageProxy.toBitmap(): Bitmap {
-    val yBuffer = planes[0].buffer
-    val uBuffer = planes[1].buffer
-    val vBuffer = planes[2].buffer
+    val buffer = planes[0].buffer
+    val bytes = ByteArray(buffer.remaining())
+    buffer.get(bytes)
+    return BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+}
 
-    val ySize = yBuffer.remaining()
-    val uSize = uBuffer.remaining()
-    val vSize = vBuffer.remaining()
-
-    val nv21 = ByteArray(ySize + uSize + vSize)
-    yBuffer.get(nv21, 0, ySize)
-
-    for (i in 0 until vSize) {
-        nv21[ySize + i * 2] = vBuffer.get(i)
-        nv21[ySize + i * 2 + 1] = uBuffer.get(i)
-    }
-
-    val yuvImage = YuvImage(nv21, ImageFormat.NV21, width, height, null)
-    val out = ByteArrayOutputStream()
-    yuvImage.compressToJpeg(Rect(0, 0, width, height), 100, out)
-    val imageBytes = out.toByteArray()
-    return BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size)
+fun Bitmap.toByteArray(): ByteArray {
+    val stream = ByteArrayOutputStream()
+    compress(Bitmap.CompressFormat.JPEG, 100, stream)
+    return stream.toByteArray()
 }
