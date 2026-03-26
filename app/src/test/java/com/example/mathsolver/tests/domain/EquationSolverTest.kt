@@ -1,6 +1,5 @@
 package com.example.mathsolver.tests.domain
 
-import com.example.mathsolver.domain.EquationSolver
 import org.junit.Assert
 import org.junit.Test
 

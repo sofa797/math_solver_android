@@ -33,11 +33,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.mathsolver.domain.BackendApi
 import com.example.mathsolver.ui.theme.MathSolverTheme
 import com.example.mathsolver.viewmodel.MainViewModel
 import com.google.accompanist.permissions.*
-import com.example.mathsolver.domain.OcrApi
-import com.example.mathsolver.domain.toReducedByteArray
 import java.io.ByteArrayOutputStream
 
 class MainActivity : ComponentActivity() {
@@ -60,7 +59,6 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun EquationScreen(viewModel: MainViewModel = viewModel()) {
 
-    var input by remember { mutableStateOf("") }
     val result by viewModel.result.observeAsState("")
     var showCamera by remember { mutableStateOf(false) }
 
@@ -69,10 +67,7 @@ fun EquationScreen(viewModel: MainViewModel = viewModel()) {
     if (showCamera) {
         if (cameraPermissionState.status.isGranted) {
             CameraView(
-                onTextDetected = {
-                    input = it
-                    showCamera = false
-                },
+                viewModel = viewModel,
                 onClose = { showCamera = false }
             )
         } else {
@@ -98,25 +93,31 @@ fun EquationScreen(viewModel: MainViewModel = viewModel()) {
 
                 Spacer(Modifier.height(16.dp))
 
+                val input by viewModel.input.observeAsState("")
+
                 OutlinedTextField(
                     value = input,
-                    onValueChange = { input = it },
+                    onValueChange = { viewModel.setInput(it) },
                     label = { Text("For instance: 2x+4=10") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
-                    trailingIcon = {
-                        if (input.isNotEmpty()) {
-                            IconButton(onClick = { input = "" }) {
-                                Icon(Icons.Default.Clear, contentDescription = "Clear")
-                            }
-                        }
-                    }
+//                    trailingIcon = {
+//                        if (input.isNotEmpty()) {
+//                            IconButton(onClick = { input = "" }) {
+//                                Icon(Icons.Default.Clear, contentDescription = "Clear")
+//                            }
+//                        }
+//                    }
                 )
 
                 Spacer(Modifier.height(16.dp))
 
                 Button(
-                    onClick = { viewModel.solveEquation(input) },
+                    onClick = {
+                        BackendApi().solveFromText(input) { result ->
+                            viewModel.setResult(result)
+                        }
+                    },
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text("Solve")
@@ -153,7 +154,10 @@ fun EquationScreen(viewModel: MainViewModel = viewModel()) {
 }
 
 @Composable
-fun CameraView(onTextDetected: (String) -> Unit, onClose: () -> Unit) {
+fun CameraView(
+    viewModel: MainViewModel,
+    onClose: () -> Unit,
+) {
 
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -351,11 +355,13 @@ fun CameraView(onTextDetected: (String) -> Unit, onClose: () -> Unit) {
 
                             val cropped = bitmap.crop(rect)
 
-                            OcrApi().recognizeImage(
+                            BackendApi().solveFromImage(
                                 cropped.toByteArray()
-                            ) { result ->
+                            ) { equation, result ->
                                 (context as ComponentActivity).runOnUiThread {
-                                    onTextDetected(result ?: "")
+                                    viewModel.setInput(equation)
+                                    viewModel.setResult(result)
+                                    onClose()
                                 }
                             }
                         }
