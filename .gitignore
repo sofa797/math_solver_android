@@ -13,3 +13,7 @@ local.properties
 .keystore
 .gradle/
 *.log
+
+__pycache__/
+
+venv/
