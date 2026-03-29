@@ -24,7 +24,7 @@ class BackendApi {
             }
         """.trimIndent()
         val request = Request.Builder()
-            .url("http://10.19.25.83:8000/solve-from-image")
+            .url("http://10.19.14.22:8000/solve-from-image")
             .post(json.toRequestBody("application/json".toMediaType()))
             .build()
         client.newCall(request).enqueue(object: Callback{
@@ -66,7 +66,7 @@ class BackendApi {
         """
 
         val request = Request.Builder()
-            .url("http://10.19.25.83:8000/solve")
+            .url("http://10.19.14.22:8000/solve")
             .post(json.toRequestBody("application/json".toMediaType()))
             .build()
         client.newCall(request).enqueue(object : Callback {
