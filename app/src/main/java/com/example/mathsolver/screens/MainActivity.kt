@@ -38,6 +38,10 @@ import com.example.mathsolver.ui.theme.MathSolverTheme
 import com.example.mathsolver.viewmodel.MainViewModel
 import com.google.accompanist.permissions.*
 import java.io.ByteArrayOutputStream
+import java.util.UUID
+import android.content.Context
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -61,6 +65,10 @@ fun EquationScreen(viewModel: MainViewModel = viewModel()) {
 
     val result by viewModel.result.observeAsState("")
     var showCamera by remember { mutableStateOf(false) }
+
+    val context = LocalContext.current
+    val userId = remember { getOrCreateUserId(context) }
+    val api = remember { BackendApi(userId) }
 
     val cameraPermissionState = rememberPermissionState(Manifest.permission.CAMERA)
 
@@ -114,7 +122,7 @@ fun EquationScreen(viewModel: MainViewModel = viewModel()) {
 
                 Button(
                     onClick = {
-                        BackendApi().solveFromText(input) { result ->
+                        api.solveFromText(input) { result ->
                             viewModel.setResult(result)
                         }
                     },
@@ -134,6 +142,17 @@ fun EquationScreen(viewModel: MainViewModel = viewModel()) {
                     Text("Scan from camera")
                 }
 
+                OutlinedButton(
+                    onClick = {
+                        api.getHistory { history ->
+                            viewModel.setResult(history)
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("History")
+                }
+
                 Spacer(Modifier.height(32.dp))
 
                 if (result.isNotEmpty()) {
@@ -141,10 +160,14 @@ fun EquationScreen(viewModel: MainViewModel = viewModel()) {
                         modifier = Modifier.fillMaxWidth(),
                         elevation = CardDefaults.cardElevation(6.dp)
                     ) {
-                        Column(Modifier.padding(16.dp)) {
+                        Column(
+                            modifier = Modifier
+                                .padding(16.dp)
+                                .verticalScroll(rememberScrollState())
+                        ) {
                             Text("Result:", style = MaterialTheme.typography.labelLarge)
                             Spacer(Modifier.height(8.dp))
-                            Text(result, style = MaterialTheme.typography.headlineSmall)
+                            Text(result, style = MaterialTheme.typography.bodyLarge)
                         }
                     }
                 }
@@ -161,6 +184,9 @@ fun CameraView(
 
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
+
+    val userId = remember { getOrCreateUserId(context) }
+    val api = remember { BackendApi(userId) }
 
     val cameraProviderFuture = remember { ProcessCameraProvider.getInstance(context) }
     val previewView = remember { PreviewView(context) }
@@ -355,7 +381,7 @@ fun CameraView(
 
                             val cropped = bitmap.crop(rect)
 
-                            BackendApi().solveFromImage(
+                            api.solveFromImage(
                                 cropped.toByteArray()
                             ) { equation, result ->
                                 (context as ComponentActivity).runOnUiThread {
@@ -406,4 +432,14 @@ fun Bitmap.toByteArray(): ByteArray {
     val stream = ByteArrayOutputStream()
     compress(Bitmap.CompressFormat.JPEG, 100, stream)
     return stream.toByteArray()
+}
+
+fun getOrCreateUserId(context: Context): String {
+    val prefs = context.getSharedPreferences("math_solver", Context.MODE_PRIVATE)
+    var userId = prefs.getString("user_id", null)
+    if (userId == null) {
+        userId = UUID.randomUUID().toString()
+        prefs.edit().putString("user_id", userId).apply()
+    }
+    return  userId
 }
