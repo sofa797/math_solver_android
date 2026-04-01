@@ -25,7 +25,7 @@ class BackendApi(private val userId: String) {
             }
         """.trimIndent()
         val request = Request.Builder()
-            .url("http://10.19.14.22:8000/solve-from-image")
+            .url("http://10.19.19.208:8000/solve-from-image")
             .post(json.toRequestBody("application/json".toMediaType()))
             .build()
         client.newCall(request).enqueue(object: Callback{
@@ -68,7 +68,7 @@ class BackendApi(private val userId: String) {
         """
 
         val request = Request.Builder()
-            .url("http://10.19.14.22:8000/solve")
+            .url("http://10.19.19.208:8000/solve")
             .post(json.toRequestBody("application/json".toMediaType()))
             .build()
         client.newCall(request).enqueue(object : Callback {
@@ -100,7 +100,7 @@ class BackendApi(private val userId: String) {
 
     fun getHistory(onResult: (String) -> Unit) {
         val request = Request.Builder()
-            .url("http://10.19.14.22:8000/history?user_id=$userId")
+            .url("http://10.19.19.208:8000/history?user_id=$userId")
             .get()
             .build()
 
