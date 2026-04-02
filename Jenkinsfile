@@ -1,6 +1,11 @@
 pipeline {
     agent any
 
+    environment {
+        DATABASE_URL = credentials('database-url')
+        HF_API_KEY = credentials('hf-api-key')
+    }
+
     stages {
 
         stage('Checkout') {
@@ -24,7 +29,8 @@ pipeline {
                 docker run -d \
                   --name math-backend \
                   -p 8000:8000 \
-                  --env-file .env \
+                  -e DATABASE_URL=$DATABASE_URL \
+                  -e HF_API_KEY=$HF_API_KEY \
                   math-backend
 
                 sleep 5
