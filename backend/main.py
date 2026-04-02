@@ -4,15 +4,19 @@ import requests
 import os
 
 
-from database import SessionLocal, engine, Base
-import schemas, crud
-from services.solver import solve_linear, extract_equation
+from backend.database import SessionLocal, engine, Base
+from backend import schemas, crud
+from backend.services.solver import solve_linear, extract_equation
 
-Base.metadata.create_all(bind=engine)
 
 app = FastAPI()
 
 HF_API_KEY = os.getenv("HF_API_KEY")
+
+
+@app.on_event("startup")
+def on_startup():
+    Base.metadata.create_all(bind=engine)
 
 
 def get_db():

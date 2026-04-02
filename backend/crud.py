@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Session
-import models
+from . import models
 
 
 def save_history(db: Session, equation: str, solution: str, user_id: str):
