@@ -4,45 +4,26 @@ pipeline {
     environment {
         DATABASE_URL = credentials('database-url')
         HF_API_KEY = credentials('hf-api-key')
+        POSTGRES_PASSWORD = credentials('postgres-password')
     }
 
     stages {
 
-        stage('Checkout') {
-            steps {
-                checkout scm
-            }
-        }
-
-        stage('Build Docker Image') {
-            steps {
-                sh 'docker build -t math-backend .'
-            }
-        }
-
-        stage('Run Backend') {
+        stage('Deploy') {
             steps {
                 sh '''
-                docker stop math-backend || true
-                docker rm math-backend || true
+                docker compose down
+                docker compose build
 
-                docker run -d \
-                  --name math-backend \
-                  -p 8000:8000 \
-                  -e DATABASE_URL=$DATABASE_URL \
-                  -e HF_API_KEY=$HF_API_KEY \
-                  math-backend
+                DATABASE_URL=$DATABASE_URL \
+                HF_API_KEY=$HF_API_KEY \
+                POSTGRES_PASSWORD=$POSTGRES_PASSWORD \
+                docker compose up -d
 
-                sleep 5
+                sleep 10
                 curl http://localhost:8000/docs || exit 1
                 '''
             }
-        }
-    }
-
-    post {
-        always {
-            sh 'docker ps'
         }
     }
 }

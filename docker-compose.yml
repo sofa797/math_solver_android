@@ -8,7 +8,7 @@ services:
 
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: kochina_10
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: mathsolver
 
     ports:
@@ -17,20 +17,13 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
 
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-
   backend:
     build: .
     container_name: math-backend
     restart: always
 
     depends_on:
-      db:
-        condition: service_healthy
+      - db
 
     environment:
       DATABASE_URL: ${DATABASE_URL}
@@ -39,8 +32,6 @@ services:
     ports:
       - "8000:8000"
 
-    volumes:
-      - ./backend:/app/backend
-
 volumes:
   pgdata:
+  
