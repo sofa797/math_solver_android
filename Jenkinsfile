@@ -8,12 +8,29 @@ pipeline {
     }
 
     stages {
+        stage('Test') {
+            steps {
+                sh'''
+                python -m venv .venv
+                . .venv/bin/activate
+                pip install -r requirements.txt
+                pytest
+                '''
+            }
+        }
+
+        stage('Build') {
+            steps {
+                sh'''
+                docker compose build
+                '''
+            }
+        }
 
         stage('Deploy') {
             steps {
                 sh '''
                 docker compose down
-                docker compose build
 
                 DATABASE_URL=$DATABASE_URL \
                 HF_API_KEY=$HF_API_KEY \

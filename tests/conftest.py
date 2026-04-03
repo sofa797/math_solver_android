@@ -40,6 +40,6 @@ def client(db):
         finally:
             pass
     app.dependency_overrides[get_db] = override_get_db
-    app.router.on_startup.clear() #then i delete it
+    #app.router.on_startup.clear() #then i will delete it
     with TestClient(app) as c:
         yield c
