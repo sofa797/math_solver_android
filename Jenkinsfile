@@ -14,7 +14,7 @@ pipeline {
                 python -m venv .venv
                 . .venv/bin/activate
                 pip install -r requirements.txt
-                unset DATABASE_URL
+                export DATABASE_URL=sqlite:///./test.db
                 pytest
                 '''
             }
