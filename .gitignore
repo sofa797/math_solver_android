@@ -17,4 +17,8 @@ local.properties
 __pycache__/
 
 venv/
+.venv
 .env
+
+test.db
+*.db
