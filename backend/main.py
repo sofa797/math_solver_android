@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends
+from fastapi import FastAPI, Depends, HTTPException
 from sqlalchemy.orm import Session
 import requests
 import os
@@ -40,15 +40,18 @@ def solve(data: schemas.EquationRequest, db: Session = Depends(get_db)):
 
 @app.post("/solve-from-image")
 def solve_from_image(data: schemas.ImageRequest, db: Session = Depends(get_db)):
-    response = requests.post(
-        "https://router.huggingface.co/zai-org/api/paas/v4/layout_parsing",
-        headers={"Authorization": f"Bearer {HF_API_KEY}"},
-        json={
-            "model": "glm-ocr",
-            "file": f"data:image/png;base64,{data.image_base64}"
-        }
-    )
-    result = response.json()
+    try:
+        response = requests.post(
+            "https://router.huggingface.co/zai-org/api/paas/v4/layout_parsing",
+            headers={"Authorization": f"Bearer {HF_API_KEY}"},
+            json={
+                "model": "glm-ocr",
+                "file": f"data:image/png;base64,{data.image_base64}"
+            }
+        )
+        result = response.json()
+    except Exception:
+        raise HTTPException(status_code=502, detail="ocr service failed")
     text = result.get("md_results", "")
     equation = extract_equation(text)
     solution = solve_linear(equation)
