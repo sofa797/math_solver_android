@@ -8,15 +8,44 @@ pipeline {
     }
 
     stages {
+        stage('Setup') {
+            steps {
+                sh'''
+                    python -m venv .venv
+                    . .venv/bin/activate
+                    pip install -r requirements.txt
+                    pip install pytest-cov flake8
+                '''
+            }
+        }
+
+        stage('Lint') {
+            steps {
+                sh'''
+                    . .venv/bin/activate
+                    flake8 backend
+                '''
+            }
+        }
+
         stage('Test') {
             steps {
                 sh'''
-                python -m venv .venv
                 . .venv/bin/activate
-                pip install -r requirements.txt
                 export DATABASE_URL=sqlite:///./test.db
-                pytest
+                pytest \
+                    --junitxml=report.xml \
+                    --cov=backend \
+                    --cov-report=xml \
+                    --cov-report=term \
+                    --cov-fail-under=80
                 '''
+            }
+            post {
+                always {
+                    junit 'report.xml'
+                    publishCoverage adapters: [coberturaAdapter('coverage.xml')]
+                }
             }
         }
 
@@ -43,5 +72,20 @@ pipeline {
                 '''
             }
         }
+    }
+
+        post {
+            success {
+                echo "success"
+            }
+            failure {
+                echo "failed"
+            }
+            unstable {
+                echo "unstable"
+            }
+            always {
+                echo "finished"
+            }
     }
 }
