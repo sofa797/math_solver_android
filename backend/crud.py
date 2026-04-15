@@ -6,7 +6,7 @@ def save_history(db: Session, equation: str, solution: str, user_id: str):
     record = models.History(
         user_id=user_id,
         equation=equation,
-        solution = solution
+        solution=solution
     )
     db.add(record)
     db.commit()

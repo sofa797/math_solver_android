@@ -6,6 +6,8 @@ def solve_linear(equation: str) -> str:
     if "=" not in equation:
         return "Equation must contain ="
     left, right = equation.split("=")
+
+
     def parse(side):
         a, b = 0, 0
         tokens = re.findall(r'([+-]?[^+-]+)', side)
@@ -21,6 +23,7 @@ def solve_linear(equation: str) -> str:
             else:
                 b += float(t)
         return a, b
+    
 
     aL, bL = parse(left)
     aR, bR = parse(right)

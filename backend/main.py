@@ -39,7 +39,10 @@ def solve(data: schemas.EquationRequest, db: Session = Depends(get_db)):
 
 
 @app.post("/solve-from-image")
-def solve_from_image(data: schemas.ImageRequest, db: Session = Depends(get_db)):
+def solve_from_image(
+        data: schemas.ImageRequest,
+        db: Session = Depends(get_db)
+    ):
     try:
         response = requests.post(
             "https://router.huggingface.co/zai-org/api/paas/v4/layout_parsing",
