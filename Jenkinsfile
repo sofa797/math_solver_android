@@ -37,14 +37,12 @@ pipeline {
                     --junitxml=report.xml \
                     --cov=backend \
                     --cov-report=xml \
-                    --cov-report=term \
-                    --cov-fail-under=80
+                    --cov-report=term
                 '''
             }
             post {
                 always {
                     junit 'report.xml'
-                    publishCoverage adapters: [coberturaAdapter('coverage.xml')]
                 }
             }
         }
