@@ -21,3 +21,6 @@ then open in your browser
 ```bash
 http://localhost:8000
 ```
+
+
+after that in Android Studio create emulator or use real device for using app
